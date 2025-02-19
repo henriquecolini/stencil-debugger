@@ -19,17 +19,11 @@ After importing the package, you can check compatibility with your project throu
 
 ![Renderer Feature](Assets~/Images/rendererfeature.png)
 
-## Limitations and Roadmap
+## Limitations
 
-**Limitations**
-
-- Only for Unity 6 + URP
+- Only tested on Unity 6 and Unity 2022, including support for Render Graph
 - Only allows for up to 10 stencil values to be displayed
 - Not optimized for performance, only use this in the editor and do not include it in your build
-
-**Roadmap**
-
-- Add support for Unity 2022.3
 
 ## Attributions
 
