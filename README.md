@@ -21,9 +21,9 @@ After importing the package, you can check compatibility with your project throu
 
 ## Limitations
 
-- Only tested on Unity 6 and Unity 2022, including support for Render Graph
-- Only allows for up to 10 stencil values to be displayed
-- Not optimized for performance, only use this in the editor and do not include it in your build
+- Only tested on Unity 6 and Unity 2022, including support for Render Graph.
+- Only allows for up to 10 stencil values to be displayed.
+- Not optimized for performance. In fact, the implementation is brute force/naïve. Only use it in the editor (it's for debugging) and do not include it in your build.
 
 ## Attributions
 
