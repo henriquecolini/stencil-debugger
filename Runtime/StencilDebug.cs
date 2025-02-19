@@ -91,10 +91,10 @@ namespace StencilDebugger
 
         [SerializeField] private ShaderResources shaders;
         private Material debugMaterial;
-        [SerializeField] private RenderPassEvent injectionPoint;
+        [SerializeField] private RenderPassEvent injectionPoint = RenderPassEvent.AfterRenderingOpaques;
         [SerializeField] private bool showInSceneView = true;
-        [SerializeField] [Range(0.0f, 100.0f)] private float scale = 100.0f;
-        [SerializeField] [Range(0.0f, 1.0f)] private float margin = 1.0f;
+        [SerializeField] [Range(0.0f, 100.0f)] private float scale = 40.0f;
+        [SerializeField] [Range(0.0f, 1.0f)] private float margin = 0.2f;
 
         /// <summary>
         /// Called
