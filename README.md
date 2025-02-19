@@ -17,6 +17,8 @@ After importing the package, you can check compatibility with your project throu
 
 - Add the Stencil Debug Renderer Feature to your renderer
 
+![Renderer Feature](Assets~/Images/rendererfeature.png)
+
 ## Limitations and Roadmap
 
 **Limitations**
