@@ -5,23 +5,17 @@ Stencil Debugger is a utility for visualizing the stencil buffer in Unity URP. T
 ![Stencil Debugger](Assets~/Images/stencil.png)
 ## Installation
 
-* Open the package manager and select the _Add package from Git URL_ option found under the top left dropdown.<br>
-![From Git URL](Assets~/Images/giturl.png)<br>
-* Add this repository git URL in the prompt, using the following link: https://github.com/sinnwrig/URP-Fog-Volumes.git.<br>
-![Git Input URL](Assets~/Images/gitinput.png)<br>
-
-## Features
-
-- Stencil debug pass showing the stencil values with numbers on the screen
-- Supports showing up to 10 stencil values
+1. Open the package manager and select the `Install package from git URL...` option found under the top left dropdown.
+    ![From Git URL](Assets~/Images/giturl.png)
+2. Enter the following link `https://github.com/alexanderameye/stencil-debugger.git`.
+    ![Git Input URL](Assets~/Images/gitinput.png)
+3. Click `Install`.
 
 ## Usage
 
 After importing the package, you can check compatibility with your project through the *Window > Stencil Debugger > Compatibility* window.
 
-
 - Add the Stencil Debug Renderer Feature to your renderer
-
 
 ## Limitations and Roadmap
 
