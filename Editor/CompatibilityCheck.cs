@@ -133,7 +133,7 @@ namespace StencilDebugger.Editor
                     paddingLeft = 2
                 }
             };
-            var versionLabel = new Label("1.0.0 • February 2025")
+            var versionLabel = new Label("1.1.0 • February 2025")
             {
                 style =
                 {

@@ -3,6 +3,7 @@
 Stencil Debugger is a utility for visualizing the stencil buffer in Unity URP. This is useful for debugging purposes when working on rendering effects that make use of the stencil buffer.
 
 ![Stencil Debugger](Assets~/Images/stencil.png)
+
 ## Installation
 
 1. Open the package manager and select the `Install package from git URL...` option found under the top left dropdown.
@@ -26,7 +27,7 @@ After importing the package, you can check compatibility with your project throu
 ## Limitations
 
 - Only tested on Unity 6 and Unity 2022, including support for Render Graph.
-- Not optimized for performance. In fact, the implementation is brute force/naïve. Only use it in the editor (it's for debugging) and do not include it in your build.
+- Not optimized for performance. Only use it in the editor (it's for debugging) and do not include it in your build.
 
 ## Attributions
 

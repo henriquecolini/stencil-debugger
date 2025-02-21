@@ -1,6 +1,4 @@
-using System;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace StencilDebugger
 {
@@ -9,58 +7,22 @@ namespace StencilDebugger
         public const string DebugGuid = "1f6212cbaa876c447b940eda42123a9b";
     }
     
-    static class ShaderPass
-    {
-        public const int Mask = 0;
-        public const int Silhouette = 0;
-        public const int Information = 0;
-        public const int FloodInit = 1;
-        public const int FloodJump = 2;
-        public const int Outline = 3;
-    }
-    
-    static class ShaderPassName
-    {
-        public const string Mask = "Mask (Wide Outline)";
-        public const string Silhouette = "Silhouette (Wide Outline)";
-        public const string Information = "Information (Wide Outline)";
-        public const string Flood = "Flood (Wide Outline)";
-        public const string Outline = "Outline (Wide Outline)";
-    }
-    
     static class ShaderPropertyId
     {
         public static readonly int Scale = Shader.PropertyToID("_Scale");
         public static readonly int Margin = Shader.PropertyToID("_Margin");
-        public static readonly int StencilRef = Shader.PropertyToID("_StencilRef");
     }
     
-    static class ShaderFeature
+    static class ShaderPassName
     {
-        public const string AlphaCutout = "ALPHA_CUTOUT";
-        public const string CustomDepth = "CUSTOM_DEPTH";
-        public const string InformationBuffer = "INFORMATION_BUFFER";
-    }
-    
-    static class Keyword
-    {
-        public static readonly GlobalKeyword OutlineColor = GlobalKeyword.Create("_OUTLINE_COLOR");
+        public const string Generate = "Generate (Debug Stencil)";
+        public const string Compose = "Compose (Debug Stencil)";
     }
     
     static class Buffer
     {
-        public const string Silhouette = "_SilhouetteBuffer";
-        public const string SilhouetteDepth = "_SilhouetteDepthBuffer";
-        public const string Information = "_InformationBuffer";
-        public const string Ping = "_PingBuffer";
-        public const string Pong = "_PongBuffer";
-    }
-
-    public enum WideOutlineOcclusion
-    {
-        Always,
-        WhenOccluded,
-        WhenNotOccluded,
-        AsMask
+        public const string StencilDebug = "_StencilDebugTexture";
+        public const string Stencil = "_StencilTexture";
+        public const string CameraColor = "_CameraColorTexture";
     }
 }

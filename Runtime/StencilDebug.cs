@@ -28,7 +28,7 @@ namespace StencilDebugger
             private float scale, margin;
             private readonly ProfilingSampler debugSampler = new(nameof(StencilDebugPass));
 
-            internal static int DivRoundUp(int x, int y) => (x + y - 1) / y;
+            private static int DivRoundUp(int x, int y) => (x + y - 1) / y;
 
             public void Setup(ComputeShader debugShader, float debugScale, float debugMargin)
             {
@@ -54,19 +54,23 @@ namespace StencilDebugger
                 TextureHandle stencilHandle;
                 TextureHandle debugHandle;
 
-                using (var builder = renderGraph.AddComputePass<PassData>("Debug Stencil", out _, profilingSampler))
+                // 1. Generate.
+                // -> Generate stencil texture.
+                using (var builder = renderGraph.AddComputePass<PassData>(ShaderPassName.Generate, out _, profilingSampler))
                 {
                     colorHandle = resourceData.activeColorTexture;
                     stencilHandle = resourceData.activeDepthTexture;
 
-                    var desc = new TextureDesc(cameraData.cameraTargetDescriptor);
-                    desc.name = "_StencilDebugTexture";
-                    desc.colorFormat = cameraData.cameraTargetDescriptor.graphicsFormat;
-                    desc.enableRandomWrite = true;
+                    var desc = new TextureDesc(cameraData.cameraTargetDescriptor)
+                    {
+                        name = Buffer.StencilDebug,
+                        colorFormat = cameraData.cameraTargetDescriptor.graphicsFormat,
+                        enableRandomWrite = true
+                    };
                     debugHandle = renderGraph.CreateTexture(new TextureDesc(desc));
 
-                    builder.UseTexture(colorHandle, AccessFlags.Read);
-                    builder.UseTexture(stencilHandle, AccessFlags.Read);
+                    builder.UseTexture(colorHandle);
+                    builder.UseTexture(stencilHandle);
                     builder.UseTexture(debugHandle, AccessFlags.ReadWrite);
 
                     builder.AllowPassCulling(false);
@@ -79,23 +83,25 @@ namespace StencilDebugger
                         cmd.SetComputeFloatParam(debug, ShaderPropertyId.Scale, scale);
                         cmd.SetComputeFloatParam(debug, ShaderPropertyId.Margin, margin);
 
-                        cmd.SetComputeTextureParam(debug, debugKernel, "_CameraColorTexture", colorHandle, 0);
-                        cmd.SetComputeTextureParam(debug, debugKernel, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
-                        cmd.SetComputeTextureParam(debug, debugKernel, "_StencilDebugTexture", debugHandle);
+                        cmd.SetComputeTextureParam(debug, debugKernel, Buffer.CameraColor, colorHandle, 0);
+                        cmd.SetComputeTextureParam(debug, debugKernel, Buffer.Stencil, stencilHandle, 0, RenderTextureSubElement.Stencil);
+                        cmd.SetComputeTextureParam(debug, debugKernel, Buffer.StencilDebug, debugHandle);
 
                         cmd.DispatchCompute(debug, debugKernel, DivRoundUp(cameraData.scaledWidth, 8), DivRoundUp(cameraData.scaledHeight, 8), 1);
                     });
                 }
 
-                using (var builder = renderGraph.AddRasterRenderPass<PassData>("Debug Stencil Blit", out _, profilingSampler))
+                // 2. Compose.
+                // -> Compose stencil texture with scene.
+                using (var builder = renderGraph.AddRasterRenderPass<PassData>(ShaderPassName.Compose, out _, profilingSampler))
                 {
-                    builder.UseTexture(debugHandle, AccessFlags.Read);
-                    builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
+                    builder.UseTexture(debugHandle);
+                    builder.SetRenderAttachment(resourceData.activeColorTexture, 0);
 
                     builder.AllowPassCulling(false);
                     builder.AllowGlobalStateModification(false);
 
-                    builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
+                    builder.SetRenderFunc((PassData _, RasterGraphContext context) =>
                     {
                         Blitter.BlitTexture(context.cmd, debugHandle, new Vector4(1, 1, 0, 0), 0, false);
                     });
@@ -125,16 +131,16 @@ namespace StencilDebugger
                     context.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
                 
-                    RTHandle colorHandle = renderingData.cameraData.renderer.cameraColorTargetHandle;
-                    RTHandle stencilHandle = cameraDepthRTHandle;
-                    RTHandle debugHandle = debugRTHandle;
+                    var colorHandle = renderingData.cameraData.renderer.cameraColorTargetHandle;
+                    var stencilHandle = cameraDepthRTHandle;
+                    var debugHandle = debugRTHandle;
 
                     cmd.SetComputeFloatParam(debug, ShaderPropertyId.Scale, scale);
                     cmd.SetComputeFloatParam(debug, ShaderPropertyId.Margin, margin);
 
-                    cmd.SetComputeTextureParam(debug, debugKernel, "_CameraColorTexture", colorHandle, 0);
-                    cmd.SetComputeTextureParam(debug, debugKernel, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
-                    cmd.SetComputeTextureParam(debug, debugKernel, "_StencilDebugTexture", debugHandle);
+                    cmd.SetComputeTextureParam(debug, debugKernel, Buffer.CameraColor, colorHandle, 0);
+                    cmd.SetComputeTextureParam(debug, debugKernel, Buffer.Stencil, stencilHandle, 0, RenderTextureSubElement.Stencil);
+                    cmd.SetComputeTextureParam(debug, debugKernel, Buffer.StencilDebug, debugHandle);
 
                     cmd.DispatchCompute(debug, debugKernel, DivRoundUp(renderingData.cameraData.cameraTargetDescriptor.width, 8), DivRoundUp(renderingData.cameraData.cameraTargetDescriptor.height, 8), 1);
 
@@ -183,7 +189,7 @@ namespace StencilDebugger
         public override void Create()
         {
 #if UNITY_EDITOR
-            string shaderPath = AssetDatabase.GUIDToAssetPath(ShaderPath.DebugGuid);
+            var shaderPath = AssetDatabase.GUIDToAssetPath(ShaderPath.DebugGuid);
             shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(shaderPath);
 #else
             shader = null;
