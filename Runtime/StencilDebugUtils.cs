@@ -4,21 +4,9 @@ using UnityEngine.Rendering;
 
 namespace StencilDebugger
 {
-    [Serializable]
-    public sealed class ShaderResources
-    {
-        public Shader debug;
-
-        public ShaderResources Load()
-        {
-            debug = Shader.Find(ShaderPath.Debug);
-            return this;
-        }
-    }
-    
     static class ShaderPath
     {
-        public const string Debug = "Hidden/Stencil Debug";
+        public const string DebugGuid = "1f6212cbaa876c447b940eda42123a9b";
     }
     
     static class ShaderPass

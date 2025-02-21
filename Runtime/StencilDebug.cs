@@ -5,6 +5,10 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 #endif
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Experimental.Rendering;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace StencilDebugger
 {
@@ -19,35 +23,20 @@ namespace StencilDebugger
     {
         private class StencilDebugPass : ScriptableRenderPass
         {
-            private Material debug;
+            private ComputeShader debug;
+            private int debugKernel;
             private float scale, margin;
-            private static Material[] _mats;
             private readonly ProfilingSampler debugSampler = new(nameof(StencilDebugPass));
 
-            public void Setup(ref Material debugMaterial, float debugScale, float debugMargin)
+            internal static int DivRoundUp(int x, int y) => (x + y - 1) / y;
+
+            public void Setup(ComputeShader debugShader, float debugScale, float debugMargin)
             {
-                debug = debugMaterial;
+                debug = debugShader;
                 scale = debugScale;
                 margin = debugMargin;
 
-                debug.SetFloat(ShaderPropertyId.Scale, scale);
-                debug.SetFloat(ShaderPropertyId.Margin, margin);
-
-                if (_mats is not {Length: 10})
-                {
-                    _mats = new Material[10];
-                }
-
-                for (var i = 0; i < 10; i++)
-                {
-                    DestroyImmediate(_mats[i]);
-                    _mats[i] = Instantiate(debug);
-                    var overrideMaterial = _mats[i];
-                    overrideMaterial.CopyPropertiesFromMaterial(debug);
-                    overrideMaterial.SetFloat(ShaderPropertyId.Scale, scale);
-                    overrideMaterial.SetFloat(ShaderPropertyId.Margin, margin);
-                    overrideMaterial.SetFloat(ShaderPropertyId.StencilRef, i);
-                }
+                debugKernel = debug.FindKernel("StencilDebug");
             }
             
 #if UNITY_6000_0_OR_NEWER
@@ -58,53 +47,98 @@ namespace StencilDebugger
 
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
-                var mpb = new MaterialPropertyBlock();
-
                 var resourceData = frameData.Get<UniversalResourceData>();
+                var cameraData = frameData.Get<UniversalCameraData>();
+                
+                TextureHandle colorHandle;
+                TextureHandle stencilHandle;
+                TextureHandle debugHandle;
 
-                if (_mats.Length != 10) return;
-
-                using var builder = renderGraph.AddRasterRenderPass<PassData>("Debug Stencil", out _, profilingSampler);
-                builder.SetRenderAttachment(resourceData.activeColorTexture, 0);
-                builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture);
-
-                builder.SetRenderFunc((PassData _, RasterGraphContext context) =>
+                using (var builder = renderGraph.AddComputePass<PassData>("Debug Stencil", out _, profilingSampler))
                 {
-                    for (var stencilValue = 0; stencilValue < 10; stencilValue++)
-                    {
-                        mpb.Clear();
-                        mpb.SetVector(Shader.PropertyToID("_BlitScaleBias"), new Vector4(1, 1, 0, 0));
+                    colorHandle = resourceData.activeColorTexture;
+                    stencilHandle = resourceData.activeDepthTexture;
 
-                        context.cmd.DrawProcedural(Matrix4x4.identity, _mats[stencilValue], 0, MeshTopology.Triangles, 3, 1, mpb);
-                    }
-                });
+                    var desc = new TextureDesc(cameraData.cameraTargetDescriptor);
+                    desc.name = "_StencilDebugTexture";
+                    desc.colorFormat = cameraData.cameraTargetDescriptor.graphicsFormat;
+                    desc.enableRandomWrite = true;
+                    debugHandle = renderGraph.CreateTexture(new TextureDesc(desc));
+
+                    builder.UseTexture(colorHandle, AccessFlags.Read);
+                    builder.UseTexture(stencilHandle, AccessFlags.Read);
+                    builder.UseTexture(debugHandle, AccessFlags.ReadWrite);
+
+                    builder.AllowPassCulling(false);
+                    builder.AllowGlobalStateModification(false);
+
+                    builder.SetRenderFunc((PassData _, ComputeGraphContext context) =>
+                    {
+                        var cmd = context.cmd;
+
+                        cmd.SetComputeFloatParam(debug, ShaderPropertyId.Scale, scale);
+                        cmd.SetComputeFloatParam(debug, ShaderPropertyId.Margin, margin);
+
+                        cmd.SetComputeTextureParam(debug, debugKernel, "_CameraColorTexture", colorHandle, 0);
+                        cmd.SetComputeTextureParam(debug, debugKernel, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
+                        cmd.SetComputeTextureParam(debug, debugKernel, "_StencilDebugTexture", debugHandle);
+
+                        cmd.DispatchCompute(debug, debugKernel, DivRoundUp(cameraData.scaledWidth, 8), DivRoundUp(cameraData.scaledHeight, 8), 1);
+                    });
+                }
+
+                using (var builder = renderGraph.AddRasterRenderPass<PassData>("Debug Stencil Blit", out _, profilingSampler))
+                {
+                    builder.UseTexture(debugHandle, AccessFlags.Read);
+                    builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
+
+                    builder.AllowPassCulling(false);
+                    builder.AllowGlobalStateModification(false);
+
+                    builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
+                    {
+                        Blitter.BlitTexture(context.cmd, debugHandle, new Vector4(1, 1, 0, 0), 0, false);
+                    });
+                }
             }
 #endif
             private RTHandle cameraDepthRTHandle;
-            
+            private RTHandle debugRTHandle;
+
             #pragma warning disable 618, 672
+            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+            {
+                var desc = renderingData.cameraData.cameraTargetDescriptor;
+                desc.msaaSamples = 1;
+                desc.depthStencilFormat = GraphicsFormat.None;
+                desc.enableRandomWrite = true;
+
+                RenderingUtils.ReAllocateHandleIfNeeded(ref debugRTHandle, desc);
+            }
+
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
-                var mpb = new MaterialPropertyBlock();
-                
-                if (_mats.Length != 10) return;
-                
                 var cmd = CommandBufferPool.Get();
 
                 using (new ProfilingScope(cmd, debugSampler))
                 {
                     context.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
-                    
-                    CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, cameraDepthRTHandle); 
-                    
-                    for (var stencilValue = 0; stencilValue < 10; stencilValue++)
-                    {
-                        mpb.Clear();
-                        mpb.SetVector(Shader.PropertyToID("_BlitScaleBias"), new Vector4(1, 1, 0, 0));
+                
+                    RTHandle colorHandle = renderingData.cameraData.renderer.cameraColorTargetHandle;
+                    RTHandle stencilHandle = cameraDepthRTHandle;
+                    RTHandle debugHandle = debugRTHandle;
 
-                        cmd.DrawProcedural(Matrix4x4.identity, _mats[stencilValue], 0, MeshTopology.Triangles, 3, 1, mpb);
-                    }
+                    cmd.SetComputeFloatParam(debug, ShaderPropertyId.Scale, scale);
+                    cmd.SetComputeFloatParam(debug, ShaderPropertyId.Margin, margin);
+
+                    cmd.SetComputeTextureParam(debug, debugKernel, "_CameraColorTexture", colorHandle, 0);
+                    cmd.SetComputeTextureParam(debug, debugKernel, "_StencilTexture", stencilHandle, 0, RenderTextureSubElement.Stencil);
+                    cmd.SetComputeTextureParam(debug, debugKernel, "_StencilDebugTexture", debugHandle);
+
+                    cmd.DispatchCompute(debug, debugKernel, DivRoundUp(renderingData.cameraData.cameraTargetDescriptor.width, 8), DivRoundUp(renderingData.cameraData.cameraTargetDescriptor.height, 8), 1);
+
+                    Blitter.BlitTexture(cmd, debugHandle, new Vector4(1, 1, 0, 0), 0, false);
                 }
                 
                 context.ExecuteCommandBuffer(cmd);
@@ -129,12 +163,11 @@ namespace StencilDebugger
 
             public void Dispose()
             {
-
+                debugRTHandle?.Release();
             }
         }
 
-        [SerializeField] private ShaderResources shaders;
-        private Material debugMaterial;
+        private ComputeShader shader;
         [SerializeField] private RenderPassEvent injectionPoint = RenderPassEvent.AfterRenderingOpaques;
         [SerializeField] private bool showInSceneView = true;
         [SerializeField] [Range(0.0f, 100.0f)] private float scale = 40.0f;
@@ -149,7 +182,12 @@ namespace StencilDebugger
         /// </summary>
         public override void Create()
         {
-            shaders = new ShaderResources().Load();
+#if UNITY_EDITOR
+            string shaderPath = AssetDatabase.GUIDToAssetPath(ShaderPath.DebugGuid);
+            shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(shaderPath);
+#else
+            shader = null;
+#endif
             stencilDebugPass ??= new StencilDebugPass();
         }
 
@@ -170,13 +208,13 @@ namespace StencilDebugger
 #endif
                 return;
 
-            if (!CreateMaterials())
+            if (shader == null)
             {
-                Debug.LogWarning("Not all required materials could be created. Stencil Debug will not render.");
+                Debug.LogWarning("A required compute shader could not be loaded. Stencil Debug will not render.");
                 return;
             }
 
-            stencilDebugPass.Setup(ref debugMaterial, scale, margin);
+            stencilDebugPass.Setup(shader, scale, margin);
             stencilDebugPass.renderPassEvent = injectionPoint;
             renderer.EnqueuePass(stencilDebugPass);
         }
@@ -197,27 +235,11 @@ namespace StencilDebugger
         {
             stencilDebugPass?.Dispose();
             stencilDebugPass = null;
-            DestroyMaterials();
         }
 
         private void OnDestroy()
         {
             stencilDebugPass?.Dispose();
-        }
-
-        private void DestroyMaterials()
-        {
-            CoreUtils.Destroy(debugMaterial);
-        }
-
-        private bool CreateMaterials()
-        {
-            if (debugMaterial == null)
-            {
-                debugMaterial = CoreUtils.CreateEngineMaterial(shaders.debug);
-            }
-
-            return debugMaterial != null;
         }
     }
 }
