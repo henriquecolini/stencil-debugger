@@ -15,7 +15,7 @@ namespace StencilDebugger
     [ExcludeFromPreset]
     [DisallowMultipleRendererFeature("Stencil Debug")]
 #if UNITY_6000_0_OR_NEWER
-    [SupportedOnRenderer(typeof(UniversalRendererData))]
+    [SupportedOnRenderer(typeof(UniversalRendererData), typeof(Renderer2DData))]
 #endif
     [Tooltip("Stencil Debug visualizes the stencil buffer in your scene view.")]
     [HelpURL("https://github.com/alexanderameye/stencil-debugger")]
